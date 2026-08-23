@@ -4,8 +4,9 @@ import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { PwaInstall } from "./pwa-install";
 import { ForecastCare } from "./forecast-care";
 import { type PlantStatus, plantNeedsRecovery } from "./care-forecast";
+import { ApiSettings } from "./api-settings";
 
-type Tab = "today" | "records" | "guide";
+type Tab = "today" | "records" | "guide" | "settings";
 type CareRecord = {
   id: number; recordDate: string; completed: string[]; soil: string; leaves: string;
   bloom: string; note: string; photoKey: string | null; fertilized: boolean; updatedAt: string;
@@ -219,8 +220,10 @@ export default function Home() {
 
       {tab === "guide" && <section className="guide-page"><div className="page-heading"><p className="eyebrow">CARE MANUAL</p><h1>茉莉养护手册</h1><p>把原则记住，环境变化时就不会被固定日程困住。</p></div><ForecastCare fertilizerDue={fertilizerDue} plantStatus={plantStatus} /><div className="guide-note"><strong>专家底线</strong><p>缺水和积水都会让叶片萎蔫，所以看到萎蔫不能直接浇水——先摸土。刚买回、刚换盆、生病或缺水时，不施肥。</p></div><div className="guide-grid">{guides.map((guide, index) => <article className="guide-card" key={guide.title}><span className="guide-number">0{index + 1}</span><div className="guide-icon">{guide.icon}</div><div><p className="eyebrow">{guide.tag}</p><h2>{guide.title}</h2><p>{guide.text}</p></div></article>)}</div><section className="warning-box"><p className="eyebrow">WHEN TO ASK</p><h2>这些情况，建议马上拍照问我</h2><ul><li>两三天内大量黄叶或落叶</li><li>花苞连续脱落，叶片同时萎蔫</li><li>叶背出现细网、白色飞虫或褐色硬壳</li><li>盆土长期有异味、长霉或浇水后几天仍很湿</li></ul></section></section>}
 
+      {tab === "settings" && <ApiSettings />}
+
       {message && <div className="toast" role="status"><span>{message}</span><button onClick={() => setMessage("")} aria-label="关闭提示">×</button></div>}
-      <nav className="bottom-nav" aria-label="主导航"><button className={tab === "today" ? "active" : ""} onClick={() => setTab("today")}><span>⌂</span>今天</button><button className={tab === "records" ? "active" : ""} onClick={() => setTab("records")}><span>▦</span>记录</button><button className={tab === "guide" ? "active" : ""} onClick={() => setTab("guide")}><span>⌁</span>养护手册</button></nav>
+      <nav className="bottom-nav" aria-label="主导航"><button className={tab === "today" ? "active" : ""} onClick={() => setTab("today")}><span>⌂</span>今天</button><button className={tab === "records" ? "active" : ""} onClick={() => setTab("records")}><span>▦</span>记录</button><button className={tab === "guide" ? "active" : ""} onClick={() => setTab("guide")}><span>⌁</span>养护手册</button><button className={tab === "settings" ? "active" : ""} onClick={() => setTab("settings")}><span>⚙</span>API 设置</button></nav>
     </main>
   );
 }
