@@ -70,8 +70,9 @@ export function ForecastCare({ fertilizerDue }: { fertilizerDue: boolean }) {
   }
 
   const today = forecast.days[0];
-  const todayPlan = buildCarePlan(today, { fertilizerDue });
   const localClock = forecast.current.time.slice(11, 16);
+  const currentHour = Number(localClock.slice(0, 2));
+  const todayPlan = buildCarePlan(today, { fertilizerDue, currentHour });
 
   return <section className="forecast-section">
     <div className="forecast-hero">
@@ -89,14 +90,14 @@ export function ForecastCare({ fertilizerDue }: { fertilizerDue: boolean }) {
 
     <div className="fortnight-heading"><div><p className="eyebrow">NEXT 14 DAYS</p><h2>未来 14 天</h2></div><p>天气预报越往后不确定性越高，建议每天打开一次更新。</p></div>
     <div className="forecast-days">
-      {forecast.days.map((day, index) => <ForecastCard key={day.date} day={day} index={index} fertilizerDue={fertilizerDue} />)}
+      {forecast.days.map((day, index) => <ForecastCard key={day.date} day={day} index={index} fertilizerDue={fertilizerDue} currentHour={index === 0 ? currentHour : undefined} />)}
     </div>
     <p className="weather-credit">天气数据由 <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a> 提供。养护建议仍以当天摸土和植株实际状态为准。</p>
   </section>;
 }
 
-function ForecastCard({ day, index, fertilizerDue }: { day: ForecastDay; index: number; fertilizerDue: boolean }) {
-  const plan = buildCarePlan(day, { fertilizerDue });
+function ForecastCard({ day, index, fertilizerDue, currentHour }: { day: ForecastDay; index: number; fertilizerDue: boolean; currentHour?: number }) {
+  const plan = buildCarePlan(day, { fertilizerDue, currentHour });
   const label = index === 0 ? "今天" : index === 1 ? "明天" : new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric", weekday: "short", timeZone: "UTC" }).format(new Date(`${day.date}T12:00:00Z`));
   return <article className={`forecast-day-card ${plan.level}`}>
     <div className="forecast-day-top"><div><strong>{label}</strong><small>{weatherLabel(day.weatherCode)}</small></div><span>{Math.round(day.maxTemp)}°<small>/{Math.round(day.minTemp)}°</small></span></div>

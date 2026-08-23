@@ -18,7 +18,7 @@ export type CarePlan = {
   actions: string[];
 };
 
-export function buildCarePlan(day: ForecastDay, context: { fertilizerDue: boolean }): CarePlan {
+export function buildCarePlan(day: ForecastDay, context: { fertilizerDue: boolean; currentHour?: number }): CarePlan {
   const actions: string[] = [];
   let level: CarePlan["level"] = "good";
   const isHot = day.maxTemp >= 33;
@@ -70,8 +70,40 @@ export function buildCarePlan(day: ForecastDay, context: { fertilizerDue: boolea
   return {
     level,
     headline: level === "alert" ? "天气压力较大，优先保护" : level === "watch" ? "今天需要多观察一次" : "天气平稳，按节奏养护",
-    actions,
+    actions: adaptToLocalTime(actions, context.currentHour),
   };
+}
+
+function adaptToLocalTime(actions: string[], currentHour?: number) {
+  if (!Number.isInteger(currentHour) || currentHour === undefined || currentHour < 0 || currentHour > 23) return actions;
+  const beforeMorning = currentHour < 6;
+  const afterMorning = currentHour >= 10;
+  if (!beforeMorning && !afterMorning) return actions;
+
+  return actions.map((action) => {
+    if (beforeMorning && action.startsWith("早上")) {
+      return "现在先观察叶片和盆土表面，不建议深夜浇水；天亮后按计划摸土，需要时再浇透。 ";
+    }
+    if (afterMorning && action.startsWith("早上 8 点前")) {
+      return currentHour >= 18
+        ? "今晚先摸土并记录；除非植株明显缺水萎蔫，否则安排明早 8 点前再判断是否浇透。 "
+        : "早晨检查时段已过，现在先摸土；明显干到 2 厘米再浇透，傍晚复查，避免正午浇水。 ";
+    }
+    if (afterMorning && action.startsWith("早上 8–9 点")) {
+      return currentHour >= 18
+        ? "今晚先摸土并记录；表土下 2 厘米已干，就安排明早 8–9 点慢慢浇透。 "
+        : "早晨检查时段已过，现在先摸土；表土下 2 厘米干了再慢慢浇透。 ";
+    }
+    if (afterMorning && action.startsWith("上午安排")) {
+      return currentHour >= 18
+        ? `今天的日照时段已过，今晚保持通风；明天${action}`
+        : `上午光照时段已过，今天先保持明亮散射光；明天${action}`;
+    }
+    if (currentHour >= 18 && action.startsWith("天气平稳且施肥周期已到")) {
+      return "施肥周期已到，今晚先不施；若明早天气和植株状态仍稳定，再先润土并使用说明浓度的 1/2。 ";
+    }
+    return action;
+  });
 }
 
 export function weatherLabel(code: number) {
