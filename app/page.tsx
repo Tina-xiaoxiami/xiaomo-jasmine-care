@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { PwaInstall } from "./pwa-install";
 
 type Tab = "today" | "records" | "guide";
 type CareRecord = {
@@ -146,7 +147,7 @@ export default function Home() {
     <main className="app-shell">
       <header className="topbar">
         <button className="brand" onClick={() => setTab("today")} aria-label="回到今天"><span>茉</span><div><strong>小茉日常</strong><small>JASMINE CARE</small></div></button>
-        <div className="top-status"><span className={`status-dot ${expert.level}`} />专家监督中</div>
+        <div className="top-actions"><PwaInstall /><div className="top-status"><span className={`status-dot ${expert.level}`} />专家监督中</div></div>
       </header>
 
       {tab === "today" && <>

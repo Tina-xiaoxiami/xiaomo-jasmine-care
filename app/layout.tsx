@@ -13,7 +13,11 @@ export async function generateMetadata(): Promise<Metadata> {
     metadataBase: new URL(origin),
     title,
     description,
-    icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
+    manifest: "/manifest.webmanifest",
+    applicationName: "小茉日常",
+    appleWebApp: { capable: true, title: "小茉日常", statusBarStyle: "black-translucent" },
+    formatDetection: { telephone: false },
+    icons: { icon: [{ url: "/icon-192.png", type: "image/png" }], shortcut: "/icon-192.png", apple: "/apple-touch-icon.png" },
     openGraph: { title, description, type: "website", images: [{ url: `${origin}/og.png`, width: 1740, height: 907, alt: "小茉日常，茉莉养护助手" }] },
     twitter: { card: "summary_large_image", title, description, images: [`${origin}/og.png`] },
   };
