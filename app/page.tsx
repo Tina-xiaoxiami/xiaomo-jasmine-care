@@ -52,6 +52,7 @@ export default function Home() {
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
   const [saved, setSaved] = useState(false);
+  const [greeting, setGreeting] = useState("你好");
   const fileRef = useRef<HTMLInputElement>(null);
 
   const dateLabel = useMemo(() => dateText(today), []);
@@ -59,7 +60,6 @@ export default function Home() {
   const latestFertilized = records.find((record) => record.fertilized)?.recordDate;
   const daysSinceFertilized = latestFertilized ? daysBetween(latestFertilized) : null;
   const fertilizerDue = daysSinceFertilized === null || daysSinceFertilized >= 12;
-  const greeting = new Date().getHours() < 12 ? "早上好" : new Date().getHours() < 18 ? "下午好" : "晚上好";
 
   const expert = useMemo(() => {
     const advice: string[] = [];
@@ -73,6 +73,14 @@ export default function Home() {
     if (!advice.length) advice.push("目前没有明显异常。保持充足光照，继续按“摸土再浇”的节奏。 ");
     return { level, title: level === "good" ? "状态稳定" : level === "watch" ? "需要留意" : "建议尽快处理", advice };
   }, [soil, leaves, bloom]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const hour = new Date().getHours();
+      setGreeting(hour < 12 ? "早上好" : hour < 18 ? "下午好" : "晚上好");
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
 
   useEffect(() => {
     if (!deviceId) return;
