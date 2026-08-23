@@ -29,11 +29,11 @@ export function buildReminderPlan(days: ForecastDay[], context: { fertilizerDue:
       reminders.push(reminder(day.date, hot ? "07:30" : "08:00", "water", "最新摸土已干：检查后浇透", "再次确认表土下 2 厘米仍干，再沿盆边慢慢浇透。"));
     } else if ((freshSoil === "wet" || freshSoil === "moist") && !needsRecovery) {
       reminders.push(reminder(day.date, "18:30", "inspection", "复查最新盆土状态", freshSoil === "wet" ? "早些时候摸土很湿；傍晚复查，继续湿就不浇。" : "早些时候土仍微湿；傍晚复查，不要提前浇水。"));
-    } else if (rainy) {
-      reminders.push(reminder(day.date, "07:30", "rain", "挡雨并检查通风", "有花苞就移到避雨处；先摸土，湿就不浇。"));
-    } else if (!cold) {
+    } else if (!rainy && !cold) {
       reminders.push(reminder(day.date, hot ? "07:30" : "08:00", "water", "摸土后再决定浇水", "检查表土下 2 厘米，干了才慢慢浇透。"));
     }
+
+    if (rainy) reminders.push(reminder(day.date, "07:30", "rain", "挡雨并检查通风", "有花苞就移到避雨处；先摸土，湿就不浇。"));
 
     if (hot || highUv) {
       reminders.push(reminder(day.date, "10:45", "shade", "给茉莉遮阴", "11–15 点避开正午暴晒，保持明亮和通风。"));
