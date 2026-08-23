@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { buildCarePlan, ForecastDay, weatherLabel } from "./care-forecast";
+import { ReminderCenter } from "./reminder-center";
 
 type ForecastData = {
   location: { label: string; latitude: number; longitude: number; timezone: string };
@@ -87,6 +88,8 @@ export function ForecastCare({ fertilizerDue }: { fertilizerDue: boolean }) {
         <ul>{todayPlan.actions.map((action) => <li key={action}>{action}</li>)}</ul>
       </div>
     </div>
+
+    <ReminderCenter days={forecast.days} timezone={forecast.location.timezone} fertilizerDue={fertilizerDue} currentLocalTime={forecast.current.time} />
 
     <div className="fortnight-heading"><div><p className="eyebrow">NEXT 14 DAYS</p><h2>未来 14 天</h2></div><p>天气预报越往后不确定性越高，建议每天打开一次更新。</p></div>
     <div className="forecast-days">

@@ -1,4 +1,4 @@
-const CACHE_NAME = "xiaomo-shell-v2";
+const CACHE_NAME = "xiaomo-shell-v3";
 const APP_SHELL = ["/", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -39,4 +39,15 @@ self.addEventListener("fetch", (event) => {
       })),
     );
   }
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = event.notification.data?.url || "/";
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
+      const existing = windows.find((client) => new URL(client.url).origin === self.location.origin);
+      return existing ? existing.focus() : clients.openWindow(target);
+    }),
+  );
 });
