@@ -39,6 +39,13 @@ test("mild weather offers fertilizer only when the cycle is due", () => {
   assert.doesNotMatch(notDue.actions.join(" "), /适合施薄肥/);
 });
 
+test("today's advice respects the local time after the morning window has passed", () => {
+  const plan = buildCarePlan(day(), { fertilizerDue: false, currentHour: 22 });
+  const advice = plan.actions.join(" ");
+  assert.match(advice, /今晚|明早/);
+  assert.doesNotMatch(advice, /^早上 8–9 点/);
+});
+
 test("weather codes have useful Chinese labels", () => {
   assert.equal(weatherLabel(0), "晴");
   assert.equal(weatherLabel(63), "中雨");
