@@ -51,6 +51,15 @@ test("fresh wet soil replaces watering with a recheck reminder", () => {
   assert.match(reminders.map((item) => item.body).join(" "), /继续湿就不浇|不要浇/);
 });
 
+test("fresh dry soil does not hide a separate rain-protection reminder", () => {
+  const reminders = buildReminderPlan([day("2026-08-23", { rainSum: 16, rainProbability: 90 })], {
+    fertilizerDue: false,
+    plantStatus: { recordDate: "2026-08-23", soil: "dry", leaves: "healthy", bloom: "buds", note: "" },
+  });
+  assert.equal(reminders.some((item) => item.type === "water"), true);
+  assert.equal(reminders.some((item) => item.type === "rain"), true);
+});
+
 test("plant abnormalities pause fertilizer and schedule follow-up inspections", () => {
   const reminders = buildReminderPlan([
     day("2026-08-23"), day("2026-08-24"), day("2026-08-25"), day("2026-08-26"),
