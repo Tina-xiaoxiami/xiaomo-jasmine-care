@@ -18,6 +18,8 @@ test("renders the jasmine care app", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   const html = await response.text();
   assert.match(html, /小茉日常/);
+  assert.match(html, /你好/);
+  assert.doesNotMatch(html, /(早上|下午|晚上)好/);
   assert.match(html, /今天也照顾好它/);
   assert.match(html, /茉莉养护助手/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton/);
