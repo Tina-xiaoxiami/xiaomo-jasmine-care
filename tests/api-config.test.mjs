@@ -60,6 +60,11 @@ test("persists, safely reads, and deletes local configurations", () => {
 
   const broken = memoryStorage({ [API_CONFIG_STORAGE_KEY]: "not-json" });
   assert.deepEqual(readApiConfigs(broken), []);
+
+  const invalidRecord = memoryStorage({
+    [API_CONFIG_STORAGE_KEY]: JSON.stringify([{ ...config, createdAt: "not-a-date" }]),
+  });
+  assert.deepEqual(readApiConfigs(invalidRecord), []);
 });
 
 test("API settings UI saves locally, hides secrets, and supports deletion", async () => {
