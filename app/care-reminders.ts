@@ -1,6 +1,6 @@
-import type { ForecastDay } from "./care-forecast";
+import { type ForecastDay, type PlantStatus, plantNeedsRecovery } from "./care-forecast.ts";
 
-export type CareReminderType = "water" | "fertilizer" | "shade" | "rain";
+export type CareReminderType = "water" | "fertilizer" | "shade" | "rain" | "inspection";
 
 export type CareReminder = {
   id: string;
@@ -11,18 +11,25 @@ export type CareReminder = {
   body: string;
 };
 
-export function buildReminderPlan(days: ForecastDay[], context: { fertilizerDue: boolean }) {
+export function buildReminderPlan(days: ForecastDay[], context: { fertilizerDue: boolean; plantStatus?: PlantStatus | null }) {
   const reminders: CareReminder[] = [];
   let fertilizerScheduled = false;
+  const needsRecovery = plantNeedsRecovery(context.plantStatus);
 
-  for (const day of days) {
+  for (const [index, day] of days.entries()) {
     const hot = day.maxTemp >= 33;
     const highUv = day.uvMax >= 7 || day.sunshineHours >= 8;
     const rainy = day.rainSum >= 8 || day.rainProbability >= 70;
     const veryHumid = day.humidity >= 85;
     const cold = day.minTemp <= 10;
+    const freshStatus = index === 0 && context.plantStatus?.recordDate === day.date ? context.plantStatus : null;
+    const freshSoil = freshStatus?.soil;
 
-    if (rainy) {
+    if (freshSoil === "dry") {
+      reminders.push(reminder(day.date, hot ? "07:30" : "08:00", "water", "最新摸土已干：检查后浇透", "再次确认表土下 2 厘米仍干，再沿盆边慢慢浇透。"));
+    } else if ((freshSoil === "wet" || freshSoil === "moist") && !needsRecovery) {
+      reminders.push(reminder(day.date, "18:30", "inspection", "复查最新盆土状态", freshSoil === "wet" ? "早些时候摸土很湿；傍晚复查，继续湿就不浇。" : "早些时候土仍微湿；傍晚复查，不要提前浇水。"));
+    } else if (rainy) {
       reminders.push(reminder(day.date, "07:30", "rain", "挡雨并检查通风", "有花苞就移到避雨处；先摸土，湿就不浇。"));
     } else if (!cold) {
       reminders.push(reminder(day.date, hot ? "07:30" : "08:00", "water", "摸土后再决定浇水", "检查表土下 2 厘米，干了才慢慢浇透。"));
@@ -32,11 +39,15 @@ export function buildReminderPlan(days: ForecastDay[], context: { fertilizerDue:
       reminders.push(reminder(day.date, "10:45", "shade", "给茉莉遮阴", "11–15 点避开正午暴晒，保持明亮和通风。"));
     }
 
-    if (hot) {
+    if (hot && freshSoil !== "wet" && freshSoil !== "moist") {
       reminders.push(reminder(day.date, "18:30", "water", "傍晚再检查一次盆土", "天气炎热，只在土确实干、植株缺水时补水。"));
     }
 
-    const suitableForFertilizer = !fertilizerScheduled && context.fertilizerDue && !hot && !cold && !rainy && !veryHumid && day.maxTemp <= 31 && day.minTemp >= 15;
+    if (needsRecovery && index < 3) {
+      reminders.push(reminder(day.date, "19:30", "inspection", "复查叶片与花苞状态", "对照上次巡检，检查叶背、黄叶、萎蔫和掉苞；有恶化就拍照。"));
+    }
+
+    const suitableForFertilizer = !fertilizerScheduled && context.fertilizerDue && !needsRecovery && !hot && !cold && !rainy && !veryHumid && day.maxTemp <= 31 && day.minTemp >= 15;
     if (suitableForFertilizer) {
       reminders.push(reminder(day.date, "09:00", "fertilizer", "今天适合施一次薄肥", "先让盆土微湿，再使用说明浓度的 1/2；不施浓肥。"));
       fertilizerScheduled = true;

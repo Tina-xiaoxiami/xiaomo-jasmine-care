@@ -1,19 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { ForecastDay } from "./care-forecast";
+import type { ForecastDay, PlantStatus } from "./care-forecast";
 import { buildReminderPlan, CareReminder, createCalendarFile } from "./care-reminders";
 
 const ENABLED_KEY = "xiaomo-reminders-enabled";
 const NOTIFIED_KEY = "xiaomo-reminders-notified";
 
-export function ReminderCenter({ days, timezone, fertilizerDue, currentLocalTime }: {
+export function ReminderCenter({ days, timezone, fertilizerDue, currentLocalTime, plantStatus }: {
   days: ForecastDay[];
   timezone: string;
   fertilizerDue: boolean;
   currentLocalTime: string;
+  plantStatus?: PlantStatus | null;
 }) {
-  const reminders = useMemo(() => buildReminderPlan(days, { fertilizerDue }), [days, fertilizerDue]);
+  const reminders = useMemo(() => buildReminderPlan(days, { fertilizerDue, plantStatus }), [days, fertilizerDue, plantStatus]);
   const upcoming = reminders.filter((item) => `${item.date}T${item.time}` >= currentLocalTime.slice(0, 16));
   const [enabled, setEnabled] = useState(false);
   const [notice, setNotice] = useState("");
@@ -91,7 +92,7 @@ export function ReminderCenter({ days, timezone, fertilizerDue, currentLocalTime
 }
 
 function ReminderRow({ item }: { item: CareReminder }) {
-  const icon = item.type === "water" ? "⌁" : item.type === "fertilizer" ? "◇" : item.type === "shade" ? "☀" : "☂";
+  const icon = item.type === "water" ? "⌁" : item.type === "fertilizer" ? "◇" : item.type === "shade" ? "☀" : item.type === "rain" ? "☂" : "✦";
   const date = new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric", weekday: "short", timeZone: "UTC" }).format(new Date(`${item.date}T12:00:00Z`));
   return <div className={`reminder-row ${item.type}`}><span className="reminder-icon">{icon}</span><div><strong>{item.title}</strong><small>{date} · {item.time}</small></div></div>;
 }

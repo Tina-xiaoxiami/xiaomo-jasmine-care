@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { buildCarePlan, ForecastDay, weatherLabel } from "./care-forecast";
+import { buildCarePlan, ForecastDay, PlantStatus, weatherLabel } from "./care-forecast";
 import { ReminderCenter } from "./reminder-center";
 
 type ForecastData = {
@@ -10,7 +10,7 @@ type ForecastData = {
   days: ForecastDay[];
 };
 
-export function ForecastCare({ fertilizerDue }: { fertilizerDue: boolean }) {
+export function ForecastCare({ fertilizerDue, plantStatus }: { fertilizerDue: boolean; plantStatus?: PlantStatus | null }) {
   const [forecast, setForecast] = useState<ForecastData | null>(null);
   const [city, setCity] = useState("");
   const [loading, setLoading] = useState(false);
@@ -73,7 +73,7 @@ export function ForecastCare({ fertilizerDue }: { fertilizerDue: boolean }) {
   const today = forecast.days[0];
   const localClock = forecast.current.time.slice(11, 16);
   const currentHour = Number(localClock.slice(0, 2));
-  const todayPlan = buildCarePlan(today, { fertilizerDue, currentHour });
+  const todayPlan = buildCarePlan(today, { fertilizerDue, currentHour, plantStatus, applyPlantStatus: true });
 
   return <section className="forecast-section">
     <div className="forecast-hero">
@@ -89,18 +89,23 @@ export function ForecastCare({ fertilizerDue }: { fertilizerDue: boolean }) {
       </div>
     </div>
 
-    <ReminderCenter days={forecast.days} timezone={forecast.location.timezone} fertilizerDue={fertilizerDue} currentLocalTime={forecast.current.time} />
+    <div className={`linked-status ${plantStatus ? "is-linked" : "needs-check"}`}>
+      <span>{plantStatus ? "✓" : "!"}</span>
+      <div>{plantStatus ? <><strong>已联动最近巡检 · {statusDate(plantStatus.recordDate)}</strong><small>土壤 {statusLabel(plantStatus.soil)} · 叶片 {statusLabel(plantStatus.leaves)} · 花苞 {statusLabel(plantStatus.bloom)}；保存新巡检后会立即重算。</small></> : <><strong>还没有可联动的巡检</strong><small>回到“今天”保存一次健康巡检后，天气计划和提醒会结合植株实际状态。</small></>}</div>
+    </div>
+
+    <ReminderCenter days={forecast.days} timezone={forecast.location.timezone} fertilizerDue={fertilizerDue} currentLocalTime={forecast.current.time} plantStatus={plantStatus} />
 
     <div className="fortnight-heading"><div><p className="eyebrow">NEXT 14 DAYS</p><h2>未来 14 天</h2></div><p>天气预报越往后不确定性越高，建议每天打开一次更新。</p></div>
     <div className="forecast-days">
-      {forecast.days.map((day, index) => <ForecastCard key={day.date} day={day} index={index} fertilizerDue={fertilizerDue} currentHour={index === 0 ? currentHour : undefined} />)}
+      {forecast.days.map((day, index) => <ForecastCard key={day.date} day={day} index={index} fertilizerDue={fertilizerDue} currentHour={index === 0 ? currentHour : undefined} plantStatus={plantStatus} />)}
     </div>
     <p className="weather-credit">天气数据由 <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a> 提供。养护建议仍以当天摸土和植株实际状态为准。</p>
   </section>;
 }
 
-function ForecastCard({ day, index, fertilizerDue, currentHour }: { day: ForecastDay; index: number; fertilizerDue: boolean; currentHour?: number }) {
-  const plan = buildCarePlan(day, { fertilizerDue, currentHour });
+function ForecastCard({ day, index, fertilizerDue, currentHour, plantStatus }: { day: ForecastDay; index: number; fertilizerDue: boolean; currentHour?: number; plantStatus?: PlantStatus | null }) {
+  const plan = buildCarePlan(day, { fertilizerDue, currentHour, plantStatus, applyPlantStatus: index === 0 });
   const label = index === 0 ? "今天" : index === 1 ? "明天" : new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric", weekday: "short", timeZone: "UTC" }).format(new Date(`${day.date}T12:00:00Z`));
   return <article className={`forecast-day-card ${plan.level}`}>
     <div className="forecast-day-top"><div><strong>{label}</strong><small>{weatherLabel(day.weatherCode)}</small></div><span>{Math.round(day.maxTemp)}°<small>/{Math.round(day.minTemp)}°</small></span></div>
@@ -108,4 +113,13 @@ function ForecastCard({ day, index, fertilizerDue, currentHour }: { day: Forecas
     <p>{plan.actions[0]}</p>
     {plan.actions[1] && <p>{plan.actions[1]}</p>}
   </article>;
+}
+
+function statusDate(value: string) {
+  return new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric", timeZone: "UTC" }).format(new Date(`${value}T12:00:00Z`));
+}
+
+function statusLabel(value: string) {
+  const labels: Record<string, string> = { unknown: "未检查", dry: "干", moist: "微湿", wet: "很湿", healthy: "绿而挺", yellow: "发黄", spotted: "有斑/疑虫", droop: "萎蔫", buds: "有花苞", blooming: "开花中", drop: "掉苞", none: "暂无" };
+  return labels[value] ?? value;
 }

@@ -18,27 +18,81 @@ export type CarePlan = {
   actions: string[];
 };
 
-export function buildCarePlan(day: ForecastDay, context: { fertilizerDue: boolean; currentHour?: number }): CarePlan {
+export type PlantStatus = {
+  recordDate: string;
+  soil: string;
+  leaves: string;
+  bloom: string;
+  note: string;
+};
+
+type CareContext = {
+  fertilizerDue: boolean;
+  currentHour?: number;
+  plantStatus?: PlantStatus | null;
+  applyPlantStatus?: boolean;
+};
+
+export function plantNeedsRecovery(status?: PlantStatus | null) {
+  return Boolean(status && (["yellow", "spotted", "droop"].includes(status.leaves) || status.bloom === "drop"));
+}
+
+export function buildCarePlan(day: ForecastDay, context: CareContext): CarePlan {
   const actions: string[] = [];
   let level: CarePlan["level"] = "good";
   const isHot = day.maxTemp >= 33;
   const isCold = day.minTemp <= 10;
   const isRainy = day.rainSum >= 8 || day.rainProbability >= 70;
   const isVeryHumid = day.humidity >= 85;
+  const status = context.plantStatus;
+  const applyStatus = Boolean(context.applyPlantStatus && status);
+  const hasFreshSoil = applyStatus && status?.soil !== "unknown";
+  const needsRecovery = plantNeedsRecovery(status);
+
+  if (applyStatus && status) {
+    if (status.soil === "dry") {
+      actions.push(context.currentHour !== undefined && context.currentHour >= 18
+        ? "最新摸土显示已干。今晚若同时明显萎蔫，可慢慢浇透；否则安排明早再确认并浇水。 "
+        : "最新摸土显示已干，现在沿盆边慢慢浇透，10 分钟后倒掉托盘积水。 ");
+    } else if (status.soil === "wet") {
+      actions.push("最新摸土显示很湿：今天不要浇水，增强通风并检查盆底排水。 ");
+      level = "watch";
+    } else if (status.soil === "moist") {
+      actions.push("最新摸土显示微湿：现在无需浇水，等表土下 2 厘米变干后再判断。 ");
+    }
+
+    if (status.leaves === "yellow") {
+      actions.push("最新巡检有黄叶：优先排查长期湿土和光照不足，暂停施肥并继续观察新叶。 ");
+      level = "watch";
+    } else if (status.leaves === "spotted") {
+      actions.push("叶片有斑或疑似虫害：先隔离，检查叶背并拍近照，处理前暂停施肥。 ");
+      level = "alert";
+    } else if (status.leaves === "droop") {
+      actions.push(status.soil === "wet"
+        ? "叶片萎蔫但土仍很湿，不要继续浇；检查根部通气和盆底积水，并拍照复查。 "
+        : "叶片萎蔫：以刚才摸土结果处理，避免不确认土壤就反复补水，并拍照复查。 ");
+      if (level === "good") level = "watch";
+    }
+
+    if (status.bloom === "drop") {
+      actions.push("正在掉花苞：保持位置、温度和水分稳定，避免淋雨、喷水和搬动，暂停施肥。 ");
+      level = "alert";
+    }
+  }
 
   if (isHot) {
     level = "alert";
-    actions.push("早上 8 点前摸土，干到 2 厘米再一次浇透；傍晚复查，不要中午浇。 ");
+    if (!hasFreshSoil) actions.push("早上 8 点前摸土，干到 2 厘米再一次浇透；傍晚复查，不要中午浇。 ");
     actions.push("11–15 点避开正午暴晒，保持明亮和通风，暂停施肥。 ");
   } else if (isCold) {
     level = "alert";
     actions.push("夜间移到室内明亮处保温，远离冷风，尽量保持 12°C 以上。 ");
     actions.push("低温时盆土干得慢，延后浇水并暂停施肥。 ");
   } else if (isRainy) {
-    level = "watch";
+    if (level === "good") level = "watch";
     actions.push("有花苞或正在开花时移到避雨处或挡雨，避免雨打落花。 ");
-    actions.push("雨天蒸发慢，先摸土；湿就不浇，不要因为日程固定浇水。 ");
-  } else {
+    if (!hasFreshSoil) actions.push("雨天蒸发慢，先摸土；湿就不浇，不要因为日程固定浇水。 ");
+  } else if (!hasFreshSoil) {
     actions.push("早上 8–9 点摸土，表土下 2 厘米干了再慢慢浇透。 ");
   }
 
@@ -60,16 +114,21 @@ export function buildCarePlan(day: ForecastDay, context: { fertilizerDue: boolea
     }
   }
 
-  const canFertilize = context.fertilizerDue && !isHot && !isCold && !isRainy && !isVeryHumid && day.maxTemp <= 31 && day.minTemp >= 15;
+  const soilAllowsFertilizer = !hasFreshSoil || status?.soil === "moist";
+  const canFertilize = context.fertilizerDue && !needsRecovery && soilAllowsFertilizer && !isHot && !isCold && !isRainy && !isVeryHumid && day.maxTemp <= 31 && day.minTemp >= 15;
   if (canFertilize) {
     actions.push("天气平稳且施肥周期已到，适合施薄肥：先让土微湿，再用说明浓度的 1/2。 ");
   } else if (context.fertilizerDue && !actions.some((action) => action.includes("暂停施肥"))) {
-    actions.push("施肥周期虽已到，但天气不稳，今天暂停施肥，等温度和湿度平稳再进行。 ");
+    actions.push(needsRecovery
+      ? "施肥周期虽已到，但最新巡检有异常，暂停施肥；等叶片和花苞恢复稳定后再重新安排。 "
+      : !soilAllowsFertilizer
+        ? "施肥周期虽已到，但最新土壤状态不合适，今天暂停施肥；等土壤微湿且植株稳定再进行。 "
+        : "施肥周期虽已到，但天气不稳，今天暂停施肥，等温度和湿度平稳再进行。 ");
   }
 
   return {
     level,
-    headline: level === "alert" ? "天气压力较大，优先保护" : level === "watch" ? "今天需要多观察一次" : "天气平稳，按节奏养护",
+    headline: applyStatus && level === "alert" ? "植株状态优先，先按巡检处理" : applyStatus && level === "watch" ? "已按最新巡检调整今天计划" : level === "alert" ? "天气压力较大，优先保护" : level === "watch" ? "今天需要多观察一次" : "天气平稳，按节奏养护",
     actions: adaptToLocalTime(actions, context.currentHour),
   };
 }

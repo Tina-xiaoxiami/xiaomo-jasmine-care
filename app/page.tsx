@@ -3,6 +3,7 @@
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { PwaInstall } from "./pwa-install";
 import { ForecastCare } from "./forecast-care";
+import { type PlantStatus, plantNeedsRecovery } from "./care-forecast";
 
 type Tab = "today" | "records" | "guide";
 type CareRecord = {
@@ -57,10 +58,16 @@ export default function Home() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const dateLabel = useMemo(() => dateText(today), []);
-  const progress = Math.round((done.length / baseTasks.length) * 100);
+  const completedTaskCount = baseTasks.filter((task) => done.includes(task.id)).length;
+  const progress = Math.round((completedTaskCount / baseTasks.length) * 100);
   const latestFertilized = records.find((record) => record.fertilized)?.recordDate;
   const daysSinceFertilized = latestFertilized ? daysBetween(latestFertilized) : null;
   const fertilizerDue = daysSinceFertilized === null || daysSinceFertilized >= 12;
+  const latestInspection = useMemo(() => records.find((record) => record.completed.includes("inspection")) ?? null, [records]);
+  const plantStatus = useMemo<PlantStatus | null>(() => latestInspection ? ({ recordDate: latestInspection.recordDate, soil: latestInspection.soil, leaves: latestInspection.leaves, bloom: latestInspection.bloom, note: latestInspection.note }) : null, [latestInspection]);
+  const freshSoilBlocksFertilizer = plantStatus?.recordDate === today && !["unknown", "moist"].includes(plantStatus.soil);
+  const fertilizerPausedByStatus = plantNeedsRecovery(plantStatus) || freshSoilBlocksFertilizer;
+  const fertilizerReady = fertilizerDue && !fertilizerPausedByStatus;
 
   const expert = useMemo(() => {
     const advice: string[] = [];
@@ -118,7 +125,9 @@ export default function Home() {
   }
 
   async function submitInspection() {
-    try { await saveRecord(); setMessage(expert.advice.join("")); } catch { setMessage("巡检结果暂时没有保存，请稍后再试。 "); }
+    const nextDone = done.includes("inspection") ? done : [...done, "inspection"];
+    setDone(nextDone);
+    try { await saveRecord({ completed: nextDone }); setMessage(`巡检已联动天气计划与提醒。${expert.advice.join("")}`); } catch { setMessage("巡检结果暂时没有保存，请稍后再试。 "); }
   }
 
   async function markFertilized() {
@@ -167,7 +176,7 @@ export default function Home() {
 
         <section className="hero-grid">
           <article className="today-card">
-            <div className="progress-ring" style={{ "--progress": `${progress * 3.6}deg` } as React.CSSProperties}><div><strong>{done.length}/{baseTasks.length}</strong><span>今日完成</span></div></div>
+            <div className="progress-ring" style={{ "--progress": `${progress * 3.6}deg` } as React.CSSProperties}><div><strong>{completedTaskCount}/{baseTasks.length}</strong><span>今日完成</span></div></div>
             <div className="hero-copy"><p className="eyebrow">今日节奏</p><h2>{progress === 100 ? "今天的照顾完成啦" : "规律，比热情更重要"}</h2><p>浇水看土，不看日历；施肥看状态，不求频繁。慢慢观察，它会告诉你需要什么。</p></div>
             <span className="leaf-shape leaf-one" /><span className="leaf-shape leaf-two" />
           </article>
@@ -183,7 +192,7 @@ export default function Home() {
         </section>
 
         <section className="rhythm-grid">
-          <article className="fertilizer-card"><div className="card-kicker"><span>◇</span><p>施肥节奏</p></div><h2>{fertilizerDue ? "可以准备下一次薄肥" : `再等 ${Math.max(0, 12 - (daysSinceFertilized ?? 0))} 天`}</h2><p>{latestFertilized ? `上次记录：${dateText(latestFertilized)}。` : "目前还没有施肥记录。"} 生长花期每 10–14 天一次，必须先让土壤湿润。</p><div className="action-row"><button className="primary-btn" onClick={markFertilized} disabled={!fertilizerDue}>今天已施薄肥</button><button className="text-btn" onClick={() => setTab("guide")}>查看方法</button></div></article>
+          <article className="fertilizer-card"><div className="card-kicker"><span>◇</span><p>施肥节奏</p></div><h2>{fertilizerPausedByStatus ? "最新巡检建议暂停施肥" : fertilizerDue ? "可以准备下一次薄肥" : `再等 ${Math.max(0, 12 - (daysSinceFertilized ?? 0))} 天`}</h2><p>{latestFertilized ? `上次记录：${dateText(latestFertilized)}。` : "目前还没有施肥记录。"} {fertilizerPausedByStatus ? "先处理土壤或植株异常，恢复稳定后再重新安排。" : "生长花期每 10–14 天一次，必须先让土壤湿润。"}</p><div className="action-row"><button className="primary-btn" onClick={markFertilized} disabled={!fertilizerReady}>今天已施薄肥</button><button className="text-btn" onClick={() => setTab("guide")}>查看方法</button></div></article>
           <article className="light-card"><div className="sun-disc">☼</div><div><p className="eyebrow">今日光照</p><h2>先从早阳 2–4 小时开始</h2><p>新买回家的茉莉先适应一周，再逐步增加到每天 4–6 小时光照。</p></div></article>
         </section>
 
@@ -206,9 +215,9 @@ export default function Home() {
         </section>
       </>}
 
-      {tab === "records" && <section className="records-page"><div className="page-heading"><p className="eyebrow">GROWTH LOG</p><h1>成长记录</h1><p>把变化连起来看，比单独一天更可靠。</p></div>{records.length === 0 ? <div className="empty-state"><span>⌁</span><h2>还没有记录</h2><p>从今天完成一次巡检或拍照，第一条成长记录就会出现在这里。</p><button className="primary-btn" onClick={() => setTab("today")}>开始今天的照顾</button></div> : <div className="record-grid">{records.map((record) => <article className="record-card" key={record.id}>{record.photoKey ? <img src={`/api/photos?deviceId=${encodeURIComponent(deviceId)}&key=${encodeURIComponent(record.photoKey)}`} alt={`${dateText(record.recordDate)}的茉莉`} /> : <div className="record-placeholder">茉</div>}<div className="record-body"><div><p className="eyebrow">{dateText(record.recordDate)}</p><span className={record.leaves === "healthy" && record.bloom !== "drop" ? "mini-good" : "mini-watch"}>{record.leaves === "healthy" && record.bloom !== "drop" ? "状态稳定" : "需要留意"}</span></div><h3>{record.completed.length} 项养护已完成</h3><p>{record.note || (record.fertilized ? "今天记录了施肥。" : "没有补充备注。")}</p><div className="record-tags"><span>土：{labelOf(record.soil)}</span><span>叶：{labelOf(record.leaves)}</span>{record.fertilized && <span>已施肥</span>}</div></div></article>)}</div>}</section>}
+      {tab === "records" && <section className="records-page"><div className="page-heading"><p className="eyebrow">GROWTH LOG</p><h1>成长记录</h1><p>把变化连起来看，比单独一天更可靠。</p></div>{records.length === 0 ? <div className="empty-state"><span>⌁</span><h2>还没有记录</h2><p>从今天完成一次巡检或拍照，第一条成长记录就会出现在这里。</p><button className="primary-btn" onClick={() => setTab("today")}>开始今天的照顾</button></div> : <div className="record-grid">{records.map((record) => <article className="record-card" key={record.id}>{record.photoKey ? <img src={`/api/photos?deviceId=${encodeURIComponent(deviceId)}&key=${encodeURIComponent(record.photoKey)}`} alt={`${dateText(record.recordDate)}的茉莉`} /> : <div className="record-placeholder">茉</div>}<div className="record-body"><div><p className="eyebrow">{dateText(record.recordDate)}</p><span className={record.leaves === "healthy" && record.bloom !== "drop" ? "mini-good" : "mini-watch"}>{record.leaves === "healthy" && record.bloom !== "drop" ? "状态稳定" : "需要留意"}</span></div><h3>{record.completed.filter((item) => baseTasks.some((task) => task.id === item)).length} 项养护已完成</h3><p>{record.note || (record.fertilized ? "今天记录了施肥。" : "没有补充备注。")}</p><div className="record-tags"><span>土：{labelOf(record.soil)}</span><span>叶：{labelOf(record.leaves)}</span>{record.completed.includes("inspection") && <span>已联动计划</span>}{record.fertilized && <span>已施肥</span>}</div></div></article>)}</div>}</section>}
 
-      {tab === "guide" && <section className="guide-page"><div className="page-heading"><p className="eyebrow">CARE MANUAL</p><h1>茉莉养护手册</h1><p>把原则记住，环境变化时就不会被固定日程困住。</p></div><ForecastCare fertilizerDue={fertilizerDue} /><div className="guide-note"><strong>专家底线</strong><p>缺水和积水都会让叶片萎蔫，所以看到萎蔫不能直接浇水——先摸土。刚买回、刚换盆、生病或缺水时，不施肥。</p></div><div className="guide-grid">{guides.map((guide, index) => <article className="guide-card" key={guide.title}><span className="guide-number">0{index + 1}</span><div className="guide-icon">{guide.icon}</div><div><p className="eyebrow">{guide.tag}</p><h2>{guide.title}</h2><p>{guide.text}</p></div></article>)}</div><section className="warning-box"><p className="eyebrow">WHEN TO ASK</p><h2>这些情况，建议马上拍照问我</h2><ul><li>两三天内大量黄叶或落叶</li><li>花苞连续脱落，叶片同时萎蔫</li><li>叶背出现细网、白色飞虫或褐色硬壳</li><li>盆土长期有异味、长霉或浇水后几天仍很湿</li></ul></section></section>}
+      {tab === "guide" && <section className="guide-page"><div className="page-heading"><p className="eyebrow">CARE MANUAL</p><h1>茉莉养护手册</h1><p>把原则记住，环境变化时就不会被固定日程困住。</p></div><ForecastCare fertilizerDue={fertilizerDue} plantStatus={plantStatus} /><div className="guide-note"><strong>专家底线</strong><p>缺水和积水都会让叶片萎蔫，所以看到萎蔫不能直接浇水——先摸土。刚买回、刚换盆、生病或缺水时，不施肥。</p></div><div className="guide-grid">{guides.map((guide, index) => <article className="guide-card" key={guide.title}><span className="guide-number">0{index + 1}</span><div className="guide-icon">{guide.icon}</div><div><p className="eyebrow">{guide.tag}</p><h2>{guide.title}</h2><p>{guide.text}</p></div></article>)}</div><section className="warning-box"><p className="eyebrow">WHEN TO ASK</p><h2>这些情况，建议马上拍照问我</h2><ul><li>两三天内大量黄叶或落叶</li><li>花苞连续脱落，叶片同时萎蔫</li><li>叶背出现细网、白色飞虫或褐色硬壳</li><li>盆土长期有异味、长霉或浇水后几天仍很湿</li></ul></section></section>}
 
       {message && <div className="toast" role="status"><span>{message}</span><button onClick={() => setMessage("")} aria-label="关闭提示">×</button></div>}
       <nav className="bottom-nav" aria-label="主导航"><button className={tab === "today" ? "active" : ""} onClick={() => setTab("today")}><span>⌂</span>今天</button><button className={tab === "records" ? "active" : ""} onClick={() => setTab("records")}><span>▦</span>记录</button><button className={tab === "guide" ? "active" : ""} onClick={() => setTab("guide")}><span>⌁</span>养护手册</button></nav>
