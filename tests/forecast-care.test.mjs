@@ -46,6 +46,30 @@ test("today's advice respects the local time after the morning window has passed
   assert.doesNotMatch(advice, /^早上 8–9 点/);
 });
 
+test("a fresh wet-soil inspection overrides generic watering advice", () => {
+  const plan = buildCarePlan(day(), {
+    fertilizerDue: false,
+    applyPlantStatus: true,
+    plantStatus: { recordDate: "2026-08-23", soil: "wet", leaves: "healthy", bloom: "buds", note: "" },
+  });
+  const advice = plan.actions.join(" ");
+  assert.match(advice, /今天不要浇水|继续不浇/);
+  assert.doesNotMatch(advice, /干了再.*浇透/);
+});
+
+test("leaf spots and bud drop override fertilizer and require priority inspection", () => {
+  const plan = buildCarePlan(day(), {
+    fertilizerDue: true,
+    applyPlantStatus: true,
+    plantStatus: { recordDate: "2026-08-23", soil: "moist", leaves: "spotted", bloom: "drop", note: "叶背有小点" },
+  });
+  const advice = plan.actions.join(" ");
+  assert.equal(plan.level, "alert");
+  assert.match(advice, /隔离|叶背|拍照/);
+  assert.match(advice, /暂停施肥/);
+  assert.doesNotMatch(advice, /适合施薄肥/);
+});
+
 test("weather codes have useful Chinese labels", () => {
   assert.equal(weatherLabel(0), "晴");
   assert.equal(weatherLabel(63), "中雨");
@@ -65,5 +89,7 @@ test("forecast endpoint and guide request a local fourteen-day plan", async () =
   assert.match(panel, /navigator\.geolocation/);
   assert.match(panel, /未来 14 天/);
   assert.match(panel, /输入城市/);
-  assert.match(page, /<ForecastCare fertilizerDue=\{fertilizerDue\}/);
+  assert.match(panel, /plantStatus/);
+  assert.match(page, /completed\.includes\("inspection"\)/);
+  assert.match(page, /<ForecastCare fertilizerDue=\{fertilizerDue\} plantStatus=\{plantStatus\}/);
 });

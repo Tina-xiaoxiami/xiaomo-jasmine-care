@@ -41,6 +41,27 @@ test("fertilizer is reminded once on the first stable suitable day", () => {
   assert.equal(fertilizer[0].time, "09:00");
 });
 
+test("fresh wet soil replaces watering with a recheck reminder", () => {
+  const reminders = buildReminderPlan([day("2026-08-23")], {
+    fertilizerDue: false,
+    plantStatus: { recordDate: "2026-08-23", soil: "wet", leaves: "healthy", bloom: "buds", note: "" },
+  });
+  assert.equal(reminders.some((item) => item.type === "water"), false);
+  assert.equal(reminders.some((item) => item.type === "inspection"), true);
+  assert.match(reminders.map((item) => item.body).join(" "), /继续湿就不浇|不要浇/);
+});
+
+test("plant abnormalities pause fertilizer and schedule follow-up inspections", () => {
+  const reminders = buildReminderPlan([
+    day("2026-08-23"), day("2026-08-24"), day("2026-08-25"), day("2026-08-26"),
+  ], {
+    fertilizerDue: true,
+    plantStatus: { recordDate: "2026-08-23", soil: "moist", leaves: "yellow", bloom: "drop", note: "" },
+  });
+  assert.equal(reminders.some((item) => item.type === "fertilizer"), false);
+  assert.equal(reminders.filter((item) => item.type === "inspection").length, 3);
+});
+
 test("calendar export carries the forecast timezone and phone alarms", () => {
   const reminders = buildReminderPlan([day("2026-08-23")], { fertilizerDue: false });
   const calendar = createCalendarFile(reminders, "Asia/Shanghai", new Date("2026-08-23T00:00:00Z"));
