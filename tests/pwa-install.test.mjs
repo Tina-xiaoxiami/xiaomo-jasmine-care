@@ -30,10 +30,11 @@ test("registers a safe offline worker and exposes install metadata", async () =>
   ]);
   assert.match(worker, /skipWaiting/);
   assert.match(worker, /clients\.claim/);
-  assert.match(worker, /pathname\.startsWith\("\/api\/"\)/);
+  assert.match(worker, /CACHE_NAME = "xiaomo-shell-v4"/);
+  assert.match(worker, /new URL\("\.\/", self\.registration\.scope\)/);
   assert.match(layout, /manifest:\s*"\/manifest\.webmanifest"/);
   assert.match(layout, /apple:\s*"\/apple-touch-icon\.png"/);
-  assert.match(installer, /serviceWorker\.register\("\/sw\.js"\)/);
+  assert.match(installer, /serviceWorker\.register\(new URL\("sw\.js", window\.location\.href\)\.pathname\)/);
   assert.match(installer, /beforeinstallprompt/);
   assert.match(installer, /添加到主屏幕/);
 });
