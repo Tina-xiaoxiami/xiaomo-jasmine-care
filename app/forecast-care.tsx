@@ -3,12 +3,7 @@
 import { FormEvent, useState } from "react";
 import { buildCarePlan, ForecastDay, PlantStatus, weatherLabel } from "./care-forecast";
 import { ReminderCenter } from "./reminder-center";
-
-type ForecastData = {
-  location: { label: string; latitude: number; longitude: number; timezone: string };
-  current: { time: string; temperature_2m: number; relative_humidity_2m: number; is_day: number; weather_code: number; wind_speed_10m: number };
-  days: ForecastDay[];
-};
+import { fetchWeatherForecast, type ForecastData } from "./weather-client";
 
 export function ForecastCare({ fertilizerDue, plantStatus }: { fertilizerDue: boolean; plantStatus?: PlantStatus | null }) {
   const [forecast, setForecast] = useState<ForecastData | null>(null);
@@ -20,10 +15,7 @@ export function ForecastCare({ fertilizerDue, plantStatus }: { fertilizerDue: bo
     setLoading(true);
     setError("");
     try {
-      const response = await fetch(`/api/forecast?${query}`);
-      const data = await response.json() as ForecastData & { error?: string };
-      if (!response.ok) throw new Error(data.error ?? "暂时无法读取天气");
-      setForecast(data);
+      setForecast(await fetchWeatherForecast(query));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "暂时无法读取天气");
     } finally {

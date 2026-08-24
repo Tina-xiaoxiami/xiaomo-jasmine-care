@@ -36,7 +36,9 @@ export function ReminderCenter({ days, timezone, fertilizerDue, currentLocalTime
       if (!due.length) return;
       const registration = await navigator.serviceWorker.ready;
       for (const item of due) {
-        await registration.showNotification(item.title, { body: item.body, icon: "/icon-192.png", badge: "/icon-192.png", tag: item.id, data: { url: "/" } });
+        const appUrl = new URL(".", window.location.href).pathname;
+        const iconUrl = new URL("icon-192.png", window.location.href).pathname;
+        await registration.showNotification(item.title, { body: item.body, icon: iconUrl, badge: iconUrl, tag: item.id, data: { url: appUrl } });
         seen.add(item.id);
       }
       window.localStorage.setItem(NOTIFIED_KEY, JSON.stringify([...seen].slice(-120)));

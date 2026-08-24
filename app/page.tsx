@@ -5,12 +5,12 @@ import { PwaInstall } from "./pwa-install";
 import { ForecastCare } from "./forecast-care";
 import { type PlantStatus, plantNeedsRecovery } from "./care-forecast";
 import { ApiSettings } from "./api-settings";
+import { type LocalCareRecord, readLocalCareRecords, readLocalPhoto, saveLocalPhoto, upsertLocalCareRecord } from "./local-care";
+
+export const dynamic = "force-static";
 
 type Tab = "today" | "records" | "guide" | "settings";
-type CareRecord = {
-  id: number; recordDate: string; completed: string[]; soil: string; leaves: string;
-  bloom: string; note: string; photoKey: string | null; fertilized: boolean; updatedAt: string;
-};
+type CareRecord = LocalCareRecord;
 type Draft = { completed: string[]; soil: string; leaves: string; bloom: string; note: string; photoKey: string | null; fertilized: boolean };
 
 const todayKey = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
@@ -42,7 +42,6 @@ function daysBetween(from: string, to = today) {
 
 export default function Home() {
   const [tab, setTab] = useState<Tab>("today");
-  const [deviceId] = useState(getOrCreateDeviceId);
   const [records, setRecords] = useState<CareRecord[]>([]);
   const [done, setDone] = useState<string[]>([]);
   const [soil, setSoil] = useState("unknown");
@@ -51,6 +50,7 @@ export default function Home() {
   const [note, setNote] = useState("");
   const [photoKey, setPhotoKey] = useState<string | null>(null);
   const [photoPreview, setPhotoPreview] = useState("");
+  const [storedPhotoUrl, setStoredPhotoUrl] = useState("");
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
@@ -92,31 +92,41 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (!deviceId) return;
-    fetch(`/api/records?deviceId=${encodeURIComponent(deviceId)}`)
-      .then((response) => response.ok ? response.json() : Promise.reject())
-      .then((data: { records: CareRecord[] }) => {
-        const nextRecords = data.records ?? [];
-        setRecords(nextRecords);
-        const current = nextRecords.find((record) => record.recordDate === today);
-        if (current) {
-          setDone(current.completed); setSoil(current.soil); setLeaves(current.leaves); setBloom(current.bloom);
-          setNote(current.note); setPhotoKey(current.photoKey);
-        }
+    const frame = window.requestAnimationFrame(() => {
+      const nextRecords = readLocalCareRecords(window.localStorage);
+      setRecords(nextRecords);
+      const current = nextRecords.find((record) => record.recordDate === today);
+      if (current) {
+        setDone(current.completed); setSoil(current.soil); setLeaves(current.leaves); setBloom(current.bloom);
+        setNote(current.note); setPhotoKey(current.photoKey);
+      }
+      setLoading(false);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    let url = "";
+    if (!photoKey) return;
+    readLocalPhoto(photoKey)
+      .then((photo) => {
+        if (!active || !photo) return;
+        url = URL.createObjectURL(photo);
+        setStoredPhotoUrl(url);
       })
-      .catch(() => setMessage("记录服务暂时离线，你仍然可以查看今天的养护建议。"))
-      .finally(() => setLoading(false));
-  }, [deviceId]);
+      .catch(() => active && setStoredPhotoUrl(""));
+    return () => { active = false; if (url) URL.revokeObjectURL(url); };
+  }, [photoKey]);
 
   async function saveRecord(overrides: Partial<Draft> = {}) {
-    if (!deviceId) return null;
     const payload: Draft = { completed: done, soil, leaves, bloom, note, photoKey, fertilized: false, ...overrides };
-    const response = await fetch("/api/records", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ deviceId, recordDate: today, ...payload }) });
-    if (!response.ok) throw new Error("save failed");
-    const data = await response.json() as { record: CareRecord };
-    setRecords((current) => [data.record, ...current.filter((item) => item.recordDate !== today)]);
+    const existing = records.find((record) => record.recordDate === today);
+    const record: CareRecord = { id: existing?.id ?? crypto.randomUUID(), recordDate: today, ...payload, updatedAt: new Date().toISOString() };
+    const next = upsertLocalCareRecord(window.localStorage, record);
+    setRecords(next);
     setSaved(true); window.setTimeout(() => setSaved(false), 1800);
-    return data.record;
+    return record;
   }
 
   async function toggleTask(id: string) {
@@ -142,16 +152,14 @@ export default function Home() {
     setUploading(true);
     try {
       const uploadFile = await compressPhoto(file);
+      const key = `${today}-${crypto.randomUUID()}`;
+      await saveLocalPhoto(key, uploadFile);
       setPhotoPreview(URL.createObjectURL(uploadFile));
-      const form = new FormData(); form.append("photo", uploadFile); form.append("deviceId", deviceId); form.append("recordDate", today);
-      const response = await fetch("/api/photos", { method: "POST", body: form });
-      const data = await response.json() as { key?: string; error?: string };
-      if (!response.ok || !data.key) throw new Error(data.error);
-      setPhotoKey(data.key);
+      setPhotoKey(key);
       const nextDone = done.includes("photo") ? done : [...done, "photo"];
-      setDone(nextDone); await saveRecord({ photoKey: data.key, completed: nextDone });
-      setMessage("照片已存入成长记录。保持同角度拍摄，更容易看出变化。 ");
-    } catch { setMessage("照片暂时没有上传成功，请稍后再试。 "); }
+      setDone(nextDone); await saveRecord({ photoKey: key, completed: nextDone });
+      setMessage("照片已保存在这台手机。保持同角度拍摄，更容易看出变化。 ");
+    } catch { setMessage("照片暂时没有保存成功，请检查手机存储空间后再试。 "); }
     finally { setUploading(false); }
   }
 
@@ -160,7 +168,7 @@ export default function Home() {
     try { await navigator.clipboard.writeText(summary); setMessage("巡检摘要已复制，可以直接发给我继续判断。 "); } catch { setMessage(summary); }
   }
 
-  const currentPhotoUrl = photoPreview || (photoKey ? `/api/photos?deviceId=${encodeURIComponent(deviceId)}&key=${encodeURIComponent(photoKey)}` : "");
+  const currentPhotoUrl = photoPreview || storedPhotoUrl;
 
   return (
     <main className="app-shell">
@@ -216,7 +224,7 @@ export default function Home() {
         </section>
       </>}
 
-      {tab === "records" && <section className="records-page"><div className="page-heading"><p className="eyebrow">GROWTH LOG</p><h1>成长记录</h1><p>把变化连起来看，比单独一天更可靠。</p></div>{records.length === 0 ? <div className="empty-state"><span>⌁</span><h2>还没有记录</h2><p>从今天完成一次巡检或拍照，第一条成长记录就会出现在这里。</p><button className="primary-btn" onClick={() => setTab("today")}>开始今天的照顾</button></div> : <div className="record-grid">{records.map((record) => <article className="record-card" key={record.id}>{record.photoKey ? <img src={`/api/photos?deviceId=${encodeURIComponent(deviceId)}&key=${encodeURIComponent(record.photoKey)}`} alt={`${dateText(record.recordDate)}的茉莉`} /> : <div className="record-placeholder">茉</div>}<div className="record-body"><div><p className="eyebrow">{dateText(record.recordDate)}</p><span className={record.leaves === "healthy" && record.bloom !== "drop" ? "mini-good" : "mini-watch"}>{record.leaves === "healthy" && record.bloom !== "drop" ? "状态稳定" : "需要留意"}</span></div><h3>{record.completed.filter((item) => baseTasks.some((task) => task.id === item)).length} 项养护已完成</h3><p>{record.note || (record.fertilized ? "今天记录了施肥。" : "没有补充备注。")}</p><div className="record-tags"><span>土：{labelOf(record.soil)}</span><span>叶：{labelOf(record.leaves)}</span>{record.completed.includes("inspection") && <span>已联动计划</span>}{record.fertilized && <span>已施肥</span>}</div></div></article>)}</div>}</section>}
+      {tab === "records" && <section className="records-page"><div className="page-heading"><p className="eyebrow">GROWTH LOG</p><h1>成长记录</h1><p>把变化连起来看，比单独一天更可靠。</p></div>{records.length === 0 ? <div className="empty-state"><span>⌁</span><h2>还没有记录</h2><p>从今天完成一次巡检或拍照，第一条成长记录就会出现在这里。</p><button className="primary-btn" onClick={() => setTab("today")}>开始今天的照顾</button></div> : <div className="record-grid">{records.map((record) => <article className="record-card" key={record.id}>{record.photoKey ? <StoredPhoto photoKey={record.photoKey} alt={`${dateText(record.recordDate)}的茉莉`} /> : <div className="record-placeholder">茉</div>}<div className="record-body"><div><p className="eyebrow">{dateText(record.recordDate)}</p><span className={record.leaves === "healthy" && record.bloom !== "drop" ? "mini-good" : "mini-watch"}>{record.leaves === "healthy" && record.bloom !== "drop" ? "状态稳定" : "需要留意"}</span></div><h3>{record.completed.filter((item) => baseTasks.some((task) => task.id === item)).length} 项养护已完成</h3><p>{record.note || (record.fertilized ? "今天记录了施肥。" : "没有补充备注。")}</p><div className="record-tags"><span>土：{labelOf(record.soil)}</span><span>叶：{labelOf(record.leaves)}</span>{record.completed.includes("inspection") && <span>已联动计划</span>}{record.fertilized && <span>已施肥</span>}</div></div></article>)}</div>}</section>}
 
       {tab === "guide" && <section className="guide-page"><div className="page-heading"><p className="eyebrow">CARE MANUAL</p><h1>茉莉养护手册</h1><p>把原则记住，环境变化时就不会被固定日程困住。</p></div><ForecastCare fertilizerDue={fertilizerDue} plantStatus={plantStatus} /><div className="guide-note"><strong>专家底线</strong><p>缺水和积水都会让叶片萎蔫，所以看到萎蔫不能直接浇水——先摸土。刚买回、刚换盆、生病或缺水时，不施肥。</p></div><div className="guide-grid">{guides.map((guide, index) => <article className="guide-card" key={guide.title}><span className="guide-number">0{index + 1}</span><div className="guide-icon">{guide.icon}</div><div><p className="eyebrow">{guide.tag}</p><h2>{guide.title}</h2><p>{guide.text}</p></div></article>)}</div><section className="warning-box"><p className="eyebrow">WHEN TO ASK</p><h2>这些情况，建议马上拍照问我</h2><ul><li>两三天内大量黄叶或落叶</li><li>花苞连续脱落，叶片同时萎蔫</li><li>叶背出现细网、白色飞虫或褐色硬壳</li><li>盆土长期有异味、长霉或浇水后几天仍很湿</li></ul></section></section>}
 
@@ -237,11 +245,19 @@ function labelOf(value: string) {
   return labels[value] ?? value;
 }
 
-function getOrCreateDeviceId() {
-  if (typeof window === "undefined") return "";
-  let id = window.localStorage.getItem("xiaomo-device-id");
-  if (!id) { id = crypto.randomUUID(); window.localStorage.setItem("xiaomo-device-id", id); }
-  return id;
+function StoredPhoto({ photoKey, alt }: { photoKey: string; alt: string }) {
+  const [url, setUrl] = useState("");
+  useEffect(() => {
+    let active = true;
+    let objectUrl = "";
+    readLocalPhoto(photoKey).then((photo) => {
+      if (!active || !photo) return;
+      objectUrl = URL.createObjectURL(photo);
+      setUrl(objectUrl);
+    }).catch(() => active && setUrl(""));
+    return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [photoKey]);
+  return url ? <img src={url} alt={alt} /> : <div className="record-placeholder">茉</div>;
 }
 
 async function compressPhoto(file: File) {

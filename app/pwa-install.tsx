@@ -14,7 +14,7 @@ export function PwaInstall() {
   const [showGuide, setShowGuide] = useState(false);
 
   useEffect(() => {
-    if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js");
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register(new URL("sw.js", window.location.href).pathname);
     const frame = window.requestAnimationFrame(() => {
       setInstalled(window.matchMedia("(display-mode: standalone)").matches ||
         Boolean((navigator as Navigator & { standalone?: boolean }).standalone));
