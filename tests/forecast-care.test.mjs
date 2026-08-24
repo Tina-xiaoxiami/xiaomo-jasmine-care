@@ -76,16 +76,17 @@ test("weather codes have useful Chinese labels", () => {
   assert.equal(weatherLabel(95), "雷雨");
 });
 
-test("forecast endpoint and guide request a local fourteen-day plan", async () => {
-  const [route, panel, page] = await Promise.all([
-    readFile(new URL("../app/api/forecast/route.ts", import.meta.url), "utf8"),
+test("local guide requests a direct fourteen-day weather plan", async () => {
+  const [weather, panel, page] = await Promise.all([
+    readFile(new URL("../app/weather-client.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/forecast-care.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
   ]);
-  assert.match(route, /forecast_days.*14/);
-  assert.match(route, /timezone.*auto/);
-  assert.match(route, /geocoding-api\.open-meteo\.com/);
-  assert.match(route, /max-age=900/);
+  assert.match(weather, /forecast_days.*14/);
+  assert.match(weather, /timezone.*auto/);
+  assert.match(weather, /geocoding-api\.open-meteo\.com/);
+  assert.match(weather, /api\.open-meteo\.com/);
+  assert.match(panel, /fetchWeatherForecast/);
   assert.match(panel, /navigator\.geolocation/);
   assert.match(panel, /未来 14 天/);
   assert.match(panel, /输入城市/);
