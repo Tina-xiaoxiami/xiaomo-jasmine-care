@@ -12,6 +12,12 @@ import {
 
 const emptyForm = { name: "", endpoint: "", model: "", apiKey: "" };
 
+const DEEPSEEK_PRESET = {
+  name: "DeepSeek 视觉",
+  endpoint: "https://t.vinno.com/v1",
+  model: "deepseek-v4-flash-vision-exp",
+};
+
 export function ApiSettings() {
   const [configs, setConfigs] = useState<ApiConfig[]>([]);
   const [form, setForm] = useState(emptyForm);
@@ -25,6 +31,12 @@ export function ApiSettings() {
 
   function updateField(field: keyof typeof emptyForm, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function applyDeepSeekPreset() {
+    setError("");
+    setNotice("");
+    setForm((current) => ({ ...current, ...DEEPSEEK_PRESET }));
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -62,7 +74,7 @@ export function ApiSettings() {
       <div className="page-heading">
         <p className="eyebrow">LOCAL CONNECTIONS</p>
         <h1>API 设置</h1>
-        <p>记录你想使用的接口。当前只保存配置，不会自动调用，也不会把密钥上传到服务器。</p>
+        <p>默认用 DeepSeek 视觉模型诊断（密钥由部署时服务端配置）。如要改用其它 OpenAI 兼容接口，可在这里添加，配置与密钥只保存在本机。</p>
       </div>
 
       <div className="api-settings-grid">
@@ -70,26 +82,27 @@ export function ApiSettings() {
           <div className="api-form-heading">
             <span>＋</span>
             <div><p className="eyebrow">NEW CONFIG</p><h2>添加一个 API</h2></div>
+            <button className="preset-btn" type="button" onClick={applyDeepSeekPreset}>填入 DeepSeek</button>
           </div>
 
           <label className="api-field">
             <span>配置名称 <b>必填</b></span>
-            <input value={form.name} onChange={(event) => updateField("name", event.target.value)} maxLength={80} placeholder="例如：我的图像识别接口" required />
+            <input value={form.name} onChange={(event) => updateField("name", event.target.value)} maxLength={80} placeholder="例如：DeepSeek 视觉" required />
           </label>
           <label className="api-field">
             <span>接口地址 <b>必填</b></span>
-            <input type="url" value={form.endpoint} onChange={(event) => updateField("endpoint", event.target.value)} maxLength={2048} placeholder="https://api.example.com/v1" inputMode="url" autoCapitalize="none" spellCheck={false} required />
+            <input type="url" value={form.endpoint} onChange={(event) => updateField("endpoint", event.target.value)} maxLength={2048} placeholder="https://t.vinno.com/v1" inputMode="url" autoCapitalize="none" spellCheck={false} required />
           </label>
           <label className="api-field">
             <span>模型名称 <small>选填</small></span>
-            <input value={form.model} onChange={(event) => updateField("model", event.target.value)} maxLength={200} placeholder="例如：vision-model" autoCapitalize="none" spellCheck={false} />
+            <input value={form.model} onChange={(event) => updateField("model", event.target.value)} maxLength={200} placeholder="deepseek-v4-flash-vision-exp" autoCapitalize="none" spellCheck={false} />
           </label>
           <label className="api-field">
             <span>API 密钥 <small>选填</small></span>
             <input type="password" value={form.apiKey} onChange={(event) => updateField("apiKey", event.target.value)} maxLength={4096} placeholder="粘贴密钥" autoComplete="new-password" autoCapitalize="none" spellCheck={false} />
           </label>
 
-          <div className="api-secret-note"><span>⌁</span><p><strong>只保存在当前设备</strong>保存后不再完整显示。清理网站数据或卸载 App 可能会删除这些记录。</p></div>
+          <div className="api-secret-note"><span>⌁</span><p><strong>只保存在当前设备</strong>诊断时密钥会经你部署的 Worker 转发到目标接口，不会在 Worker 中存储。清理网站数据或卸载 App 可能会删除这些记录。</p></div>
           {error && <p className="api-message error" role="alert">{error}</p>}
           {notice && <p className="api-message success" role="status">{notice}</p>}
           <button className="primary-btn api-save-btn" type="submit">保存 API 配置</button>

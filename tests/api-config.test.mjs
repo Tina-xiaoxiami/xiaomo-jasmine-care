@@ -78,7 +78,10 @@ test("API settings UI saves locally, hides secrets, and supports deletion", asyn
   assert.match(settings, /maskApiKey/);
   assert.match(settings, /window\.confirm/);
   assert.match(settings, /删除配置/);
-  assert.match(settings, /不会自动调用|不会调用/);
+  assert.match(settings, /DeepSeek/);
+  assert.match(settings, /deepseek-v4-flash-vision-exp/);
+  assert.match(settings, /t\.vinno\.com/);
+  assert.match(settings, /填入 DeepSeek/);
   assert.match(page, /"settings"/);
   assert.match(page, /<ApiSettings/);
   assert.match(page, />API 设置</);

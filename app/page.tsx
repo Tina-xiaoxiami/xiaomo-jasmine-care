@@ -2,6 +2,7 @@
 
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { PwaInstall } from "./pwa-install";
+import { PhotoDiagnosis } from "./photo-diagnosis";
 import { ForecastCare } from "./forecast-care";
 import { type PlantStatus, plantNeedsRecovery } from "./care-forecast";
 import { ApiSettings } from "./api-settings";
@@ -222,6 +223,8 @@ export default function Home() {
           </div>
           <div className="photo-copy"><p className="eyebrow">DAILY PHOTO</p><h2>用照片看见变化</h2><p>尽量每天在相同位置、相同光线下拍摄。照片会保存在你的成长记录中；如果需要更细的判断，把照片和复制的巡检摘要发到这个对话。</p><button className="primary-btn" onClick={() => fileRef.current?.click()} disabled={uploading}>{uploading ? "正在保存…" : currentPhotoUrl ? "更换今天的照片" : "拍照或选择照片"}</button><input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={handlePhoto} hidden /></div>
         </section>
+
+        <PhotoDiagnosis photoKey={photoKey} note={note} onOpenSettings={() => setTab("settings")} />
       </>}
 
       {tab === "records" && <section className="records-page"><div className="page-heading"><p className="eyebrow">GROWTH LOG</p><h1>成长记录</h1><p>把变化连起来看，比单独一天更可靠。</p></div>{records.length === 0 ? <div className="empty-state"><span>⌁</span><h2>还没有记录</h2><p>从今天完成一次巡检或拍照，第一条成长记录就会出现在这里。</p><button className="primary-btn" onClick={() => setTab("today")}>开始今天的照顾</button></div> : <div className="record-grid">{records.map((record) => <article className="record-card" key={record.id}>{record.photoKey ? <StoredPhoto photoKey={record.photoKey} alt={`${dateText(record.recordDate)}的茉莉`} /> : <div className="record-placeholder">茉</div>}<div className="record-body"><div><p className="eyebrow">{dateText(record.recordDate)}</p><span className={record.leaves === "healthy" && record.bloom !== "drop" ? "mini-good" : "mini-watch"}>{record.leaves === "healthy" && record.bloom !== "drop" ? "状态稳定" : "需要留意"}</span></div><h3>{record.completed.filter((item) => baseTasks.some((task) => task.id === item)).length} 项养护已完成</h3><p>{record.note || (record.fertilized ? "今天记录了施肥。" : "没有补充备注。")}</p><div className="record-tags"><span>土：{labelOf(record.soil)}</span><span>叶：{labelOf(record.leaves)}</span>{record.completed.includes("inspection") && <span>已联动计划</span>}{record.fertilized && <span>已施肥</span>}</div></div></article>)}</div>}</section>}
