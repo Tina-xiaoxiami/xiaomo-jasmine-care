@@ -67,6 +67,18 @@ test("defaults to the DeepSeek vision provider", () => {
   assert.equal(DEFAULT_PROVIDER.model, "deepseek-v4-flash-vision-exp");
 });
 
+test("lets users ask their own question about the photo", () => {
+  const request = buildDiagnosisRequest(config, { imageBase64: "aGVsbG8=", question: "叶子发黄是缺肥还是水多？" });
+  const text = JSON.parse(request.body).messages[1].content[0].text;
+  assert.equal(text, "叶子发黄是缺肥还是水多？");
+  assert.doesNotMatch(text, /请诊断这盆茉莉花/);
+
+  const withNote = buildDiagnosisRequest(config, { imageBase64: "aGVsbG8=", question: "这是什么病？", note: "叶背有白点" });
+  const combined = JSON.parse(withNote.body).messages[1].content[0].text;
+  assert.match(combined, /这是什么病？/);
+  assert.match(combined, /叶背有白点/);
+});
+
 test("rejects unsafe endpoints and damaged images before calling upstream", () => {
   assert.throws(() => buildDiagnosisRequest({ ...config, endpoint: "http://api.example.com/v1" }, { imageBase64: "aGVsbG8=" }), /HTTPS/);
   assert.throws(() => buildDiagnosisRequest({ ...config, endpoint: "https://user:pass@example.com/v1" }, { imageBase64: "aGVsbG8=" }), /账号|密码/);
@@ -175,7 +187,10 @@ test("the client wires the photo diagnosis panel into the today page", async () 
   assert.match(page, /<PhotoDiagnosis photoKey=\{photoKey\} note=\{note\} onOpenSettings=/);
   assert.match(panel, /readLocalPhoto/);
   assert.match(panel, /\.\/api\/diagnose/);
+  assert.match(panel, /拍照问答/);
   assert.match(panel, /开始诊断/);
+  assert.match(panel, /发送提问/);
+  assert.match(panel, /question/);
   assert.match(panel, /DeepSeek/);
   assert.match(panel, /deepseek-v4-flash-vision-exp/);
   assert.match(worker, /\/api\/diagnose/);

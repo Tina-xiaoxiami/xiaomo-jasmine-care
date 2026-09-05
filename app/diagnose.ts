@@ -7,6 +7,7 @@ export type DiagnosisConfig = {
 export type DiagnosisInput = {
   imageBase64: string;
   note?: string;
+  question?: string;
 };
 
 export type DiagnosisOptions = {
@@ -28,6 +29,7 @@ const SYSTEM_PROMPT = [
 
 const MAX_IMAGE_BASE64 = 8_000_000;
 const MAX_NOTE_LENGTH = 2000;
+const MAX_QUESTION_LENGTH = 500;
 
 const localHosts = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
@@ -58,7 +60,10 @@ export function chatCompletionsUrl(endpoint: string): string {
   return /\/chat\/completions$/.test(base) ? base : `${base}/chat/completions`;
 }
 
-function userPrompt(note: string): string {
+function userPrompt(question: string, note: string): string {
+  if (question) {
+    return note ? `${question}\n\n我的补充观察：${note}` : question;
+  }
   const base = "请诊断这盆茉莉花：判断当前健康状态，以及是否出现病虫害、缺水、积水、缺光、肥害等问题。";
   return note ? `${base}\n\n我的补充观察：${note}` : base;
 }
@@ -67,6 +72,7 @@ export function buildDiagnosisRequest(config: DiagnosisConfig, input: DiagnosisI
   const endpoint = validateEndpoint(config.endpoint);
   const imageBase64 = normalizeImageBase64(input.imageBase64);
   const note = (input.note ?? "").trim().slice(0, MAX_NOTE_LENGTH);
+  const question = (input.question ?? "").trim().slice(0, MAX_QUESTION_LENGTH);
   const model = config.model.trim();
   const apiKey = config.apiKey.trim();
 
@@ -78,7 +84,7 @@ export function buildDiagnosisRequest(config: DiagnosisConfig, input: DiagnosisI
     {
       role: "user",
       content: [
-        { type: "text", text: userPrompt(note) },
+        { type: "text", text: userPrompt(question, note) },
         { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } },
       ],
     },

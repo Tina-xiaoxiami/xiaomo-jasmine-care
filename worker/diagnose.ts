@@ -24,6 +24,7 @@ export async function handleDiagnose(request: Request, env: DiagnoseEnv): Promis
   const input = {
     imageBase64: typeof body.imageBase64 === "string" ? body.imageBase64 : "",
     note: typeof body.note === "string" ? body.note : "",
+    question: typeof body.question === "string" ? body.question : "",
   };
 
   if (JSON.stringify(body).length > MAX_BODY_BYTES) return json({ error: "请求体过大" }, 413);
